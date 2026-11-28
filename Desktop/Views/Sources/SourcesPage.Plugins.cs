@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
@@ -103,6 +104,9 @@ public partial class SourcesPage
         Button button = this.FindControl<Button>("SourcePluginEnabled")!;
         CommandBindings.ApplyLabeled(button, enabled ? "plugins.disable" : "plugins.enable",
             Texts.T(enabled ? "sources.site.disable" : "sources.site.enable"));
+        // The copied master button carries "already enabled" while the family plugin is on; that is not true for this site.
+        AutomationProperties.SetHelpText(button, string.Empty);
+        ToolTip.SetTip(button, null);
         button.Tag = new SiteToggle(row.Id, !enabled);
         button.IsVisible = true;
         button.IsEnabled = !IsBusy && SetSourceSiteEnabled != null;
@@ -118,7 +122,8 @@ public partial class SourcesPage
             bool saved = false;
             _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
             try { saved = await set(toggle.SourceId, toggle.Enabled); }
-            catch (Exception error) when (error is InvalidOperationException or ObjectDisposedException) { }
+            catch (Exception error) when (error is InvalidOperationException or ObjectDisposedException or IOException
+                or UnauthorizedAccessException) { }
             finally
             {
                 _busy = false;

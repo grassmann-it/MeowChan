@@ -588,17 +588,25 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             int last = _localTagRows.Children.Count - 1;
             if (_localTagSelection >= 0) _localTagRows.Children[_localTagSelection].Classes.Remove("primary");
+            // Up from the first row returns to the raw text (no selection) instead of sticking on row 0.
             _localTagSelection = e.Key == Key.Down ? Math.Min(_localTagSelection + 1, last)
-                : _localTagSelection < 0 ? last : Math.Max(0, _localTagSelection - 1);
-            Control selected = _localTagRows.Children[_localTagSelection];
-            selected.Classes.Add("primary");
-            selected.BringIntoView();
+                : _localTagSelection < 0 ? last : _localTagSelection - 1;
+            if (_localTagSelection >= 0)
+            {
+                Control selected = _localTagRows.Children[_localTagSelection];
+                selected.Classes.Add("primary");
+                selected.BringIntoView();
+            }
+            // Screen readers hear the highlighted suggestion through the popup's name; no selection restores the plain title.
+            string title = Texts.T("booru.suggest.local");
+            AutomationProperties.SetName(_localTagPopup.Child!, _localTagSelection >= 0
+                ? title + ": " + AutomationProperties.GetName(_localTagRows.Children[_localTagSelection]) : title);
             return true;
         }
-        if (e.Key == Key.Tab || (e.Key == Key.Enter && _localTagSelection >= 0))
+        // Tab and Enter take a suggestion only after the user actively chose one; otherwise Tab moves on normally.
+        if (e.Key is Key.Tab or Key.Enter && _localTagSelection >= 0)
         {
-            Control selected = _localTagRows.Children[Math.Max(0, _localTagSelection)];
-            CommandBindings.InvokeAction(selected);
+            CommandBindings.InvokeAction(_localTagRows.Children[_localTagSelection]);
             return true;
         }
         return false;

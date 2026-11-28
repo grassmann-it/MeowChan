@@ -74,6 +74,35 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TabCompletesOnlyAnActivelyChosenSuggestionAndUpReturnsToTheRawText() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Texts.SetLanguage("en");
+        BooruUiHarness harness = new();
+        BooruCatalogSnapshot snapshot = Snapshot([Post(Danbooru, 101, Tag("cat"))]);
+        using SearchFixture fixture = new(new BooruWorkbenchModel(harness.Services), () => snapshot);
+        fixture.Type("ca");
+        await fixture.WaitForTag("cat");
+        string title = AutomationProperties.GetName(fixture.Popup!);
+
+        // Nothing chosen yet: Tab must not take the first suggestion.
+        fixture.Press(PhysicalKey.Tab);
+        Assert.Equal("ca", fixture.Input.Text);
+
+        fixture.Type("ca");
+        await fixture.WaitForTag("cat");
+        fixture.Press(PhysicalKey.ArrowDown);
+        Assert.Contains("cat", AutomationProperties.GetName(fixture.Popup!));
+        Assert.NotEqual(title, AutomationProperties.GetName(fixture.Popup!));
+        fixture.Press(PhysicalKey.ArrowUp);
+        Assert.Equal(title, AutomationProperties.GetName(fixture.Popup!));
+        Assert.DoesNotContain("primary", fixture.Row("cat")!.Classes);
+        fixture.Press(PhysicalKey.Tab);
+        Assert.Equal("ca", fixture.Input.Text);
+        Assert.Equal(0, harness.ProviderRequests);
+    });
+
+    [Fact]
     public void KeyboardCompletesOnlyTheLastTermAndEnterWithoutSelectionUsesFreeText() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -86,7 +115,6 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
         Assert.Equal("From your catalog", AutomationProperties.GetName(fixture.Popup!));
         fixture.Press(PhysicalKey.ArrowDown);
         fixture.Press(PhysicalKey.ArrowDown);
-        fixture.Press(PhysicalKey.ArrowUp);
         fixture.Press(PhysicalKey.Tab);
         Assert.Equal("base  -cat", fixture.Input.Text);
         Assert.Null(fixture.Popup);
@@ -177,6 +205,7 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
         fixture.Type("cl");
         await fixture.WaitForTag("cloud");
         Assert.Null(fixture.Row("cloud_private"));
+        fixture.Press(PhysicalKey.ArrowDown);
         fixture.Press(PhysicalKey.Tab);
         Assert.Equal("cloud", fixture.Input.Text);
         Assert.Empty(transport.Requests);

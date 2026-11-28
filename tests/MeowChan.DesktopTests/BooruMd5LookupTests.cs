@@ -88,7 +88,6 @@ public sealed class BooruMd5LookupTests
     [Theory]
     [InlineData("md5:0123456789abcdef0123456789abcde")]
     [InlineData(Query + "0")]
-    [InlineData("md5:0123456789abcdef0123456789abcdeF")]
     [InlineData("md5:0123456789abcdef0123456789abcdeg")]
     [InlineData(Query + " cat")]
     public void BadMd5InputIsRejectedAtTheHostQueryBoundary(string query)
@@ -96,6 +95,14 @@ public sealed class BooruMd5LookupTests
         Assert.Equal(BooruInputKind.Invalid, BooruInput.Parse(BooruInputMode.Tags, query).Kind);
         Assert.Equal(Query + " rating:g", BooruInput.Parse(BooruInputMode.Tags, Query + " rating:g").Canonical);
         Assert.Equal("cat -dog rating:g", BooruInput.Parse(BooruInputMode.Tags, "cat -dog rating:g").Canonical);
+    }
+
+    [Fact]
+    public void UppercaseMd5InputIsAcceptedAndCanonicalizedToLowercase()
+    {
+        BooruParsedInput parsed = BooruInput.Parse(BooruInputMode.Tags, "md5:0123456789ABCDEF0123456789abcdeF");
+        Assert.NotEqual(BooruInputKind.Invalid, parsed.Kind);
+        Assert.Equal(Query, parsed.Canonical);
     }
 
     [Fact]

@@ -148,6 +148,22 @@ public sealed class SourcesItemEnterTests
         finally { MeowChan.Desktop.Commands.ShortcutService.Publish(new MeowChan.Desktop.Commands.ShortcutBindingsSection()); }
     });
 
+    [Theory]
+    [InlineData(typeof(IOException))]
+    [InlineData(typeof(UnauthorizedAccessException))]
+    public void ASiteSwitchThatCannotBeSavedShowsTheSaveFailureInsteadOfCrashing(Type failure) => Run(fixture =>
+    {
+        fixture.Page.SetSourceSiteEnabled = (_, _) => throw (Exception)Activator.CreateInstance(failure)!;
+        Type toggle = typeof(SourcesPage).GetNestedType("SiteToggle", InstanceNonPublic)!;
+        Button button = new() { Tag = Activator.CreateInstance(toggle, "4chan", true) };
+
+        typeof(SourcesPage).GetMethod("OnSourcePluginEnabledClick", InstanceNonPublic)!.Invoke(fixture.Page, [button, new RoutedEventArgs()]);
+        for (int attempt = 0; attempt < 50; attempt++) Dispatcher.UIThread.RunJobs();
+
+        Assert.False(fixture.Page.IsBusy);
+        Assert.Equal(Texts.T("sources.site.saveFailed"), fixture.Page.FindControl<TextBlock>("SourcesActionError")!.Text);
+    });
+
     private static Control Container(SelectingItemsControl list, int index) => list.ContainerFromIndex(index)
         ?? throw new InvalidOperationException("The row " + index + " has no container.");
 
