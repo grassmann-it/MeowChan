@@ -233,7 +233,7 @@ internal sealed class BooruMediaDetailsDialog : Window
             _useAsSearchButton.Content = Texts.T("booru.media.tags.useAsSearch");
             ToolTip.SetTip(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
             AutomationProperties.SetHelpText(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
-            _useAsSearchButton.Click += (_, _) => OpenActions.Start(UseSelectionAsSearchAsync, "booru.media.tags.search");
+            _useAsSearchButton.Click += (_, _) => OpenActions.Start(OpenSelectedTagDraftAsync, "booru.media.tags.search");
             actions.Children.Add(_useAsSearchButton);
         }
         panel.Children.Add(actions);
@@ -325,7 +325,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     }
 
     // The marked tags become an editable draft in a new Danbooru search tab.
-    private async Task UseSelectionAsSearchAsync()
+    private async Task OpenSelectedTagDraftAsync()
     {
         BooruTagSearchPlan plan = BooruSourceTagSearch.Plan(SelectedTagNames());
         switch (plan.Problem)

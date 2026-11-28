@@ -40,9 +40,29 @@ public partial class MainWindow
         return boundary == null || entries.All(entry => boundary.Allows(entry.Key.Thread));
     }
 
-    private void RefreshLocalGalleryContentBoundary()
+    private bool RefreshLocalGalleryContentBoundary()
     {
-        if (_gallery?.AllowsMedia != null && !AllowsLocalGalleryEntries(_galleryEntries)) CloseGallery();
+        if (_gallery is not { AllowsMedia: not null } viewer || ReadLocalGalleryBoundary() is not { } boundary) return false;
+        if (_galleryEntries.All(entry => boundary.Allows(entry.Key.Thread))) return false;
+
+        List<GalleryEntry> entries = _galleryEntries.Where(entry => boundary.Allows(entry.Key.Thread)).ToList();
+        int index = entries.FindIndex(entry => entry.EntryKey == viewer.CurrentEntry?.EntryKey);
+        if (index < 0)
+        {
+            CloseGallery();
+            return true;
+        }
+
+        CancelGalleryPreload();
+        _galleryEntries = entries;
+        _galleryIndex = index;
+        _galleryThreadPositions = viewer.ThreadPositions = null;
+        EndGalleryTagging(persist: true);
+        viewer.RefreshEntries(entries[index], entries, ++_galleryAssociationsRevision);
+        UpdateGalleryScope();
+        UpdateGalleryPosition();
+        StartGalleryPreload(viewer);
+        return true;
     }
 
     private void WireGalleryActions()

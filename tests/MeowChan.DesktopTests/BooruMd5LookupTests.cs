@@ -13,6 +13,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.Updates;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 using MeowChan.PluginSdk;
 using MeowChan.Storage;
 using MeowChan.Tests.Shared;
@@ -94,6 +95,94 @@ public sealed class BooruMd5LookupTests
         await request;
         Assert.True(gallery.IsVisible);
         Assert.Single(search.Searches);
+    });
+
+    [Fact]
+    public void ConfirmingTheFirstChoiceAtTheTabLimitKeepsTheAllowedGalleryImage() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "media"), FirstRunSetupVersion = 1, Language = "en",
+            ShowBooruTools = true, BooruSearchTabs = 2, BooruSavedTabs = 2, RestoreBooruSearchTabs = true
+        }.SaveConfig(profile.Path);
+        FakeBooruSearchPort search = new();
+        BooruPostKey general = new(search.ProviderId, search.InstanceId, "101");
+        BooruPostKey explicitPost = new(search.ProviderId, search.InstanceId, "102");
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+        {
+            lease.Admission.CompleteStartup();
+            BooruCatalogStore catalog = new(profile.Path, lease);
+            catalog.UpsertPost(new(general.SourceId, general.PostId, BooruPostClaimPresence.Rating,
+                Rating: BooruPostClaimRating.General, RawRating: "g", InstanceId: general.InstanceId), DateTimeOffset.UnixEpoch);
+            catalog.UpsertPost(new(explicitPost.SourceId, explicitPost.PostId, BooruPostClaimPresence.Rating,
+                Rating: BooruPostClaimRating.Explicit, RawRating: "e", InstanceId: explicitPost.InstanceId), DateTimeOffset.UnixEpoch);
+            new BooruSearchTabStore(lease).Write(new(0,
+                [new(search.ProviderId, search.InstanceId, null, "cat", Empty: true),
+                 new(search.ProviderId, search.InstanceId, null, "dog", Empty: true)]));
+        }
+        GalleryEntry allowed = await SaveEntryAsync(general, 41);
+        GalleryEntry blocked = await SaveEntryAsync(explicitPost, 42);
+
+        await using DesktopSessionHost session = new(profile.Path, [],
+            updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+        BooruWorkbenchServices source = new(search, new FakeBooruQueuePort(), new FakeBooruWatcherPort(new BooruManualClock()),
+            new FakeBooruPreviewPort()) { Content = session.LocalMediaContent };
+        session.BooruServices = source;
+        await using MainWindow main = new(session) { Width = 1200, Height = 800 };
+        main.Show();
+        main.PlatformImpl!.Activated?.Invoke();
+        await main.StartupTimingRestoreTask;
+        Click(ById<Button>(main, "MediaNavigationButton"));
+        Assert.Equal(MainWindow.WorkspacePage.Media, main.SelectedPage);
+        Assert.False(source.Content.HasChoice);
+        Assert.NotNull(await main.OpenMediaGalleryAsync([blocked, allowed], allowed.EntryKey));
+        ContentControl gallery = ById<ContentControl>(main, "GalleryHost");
+        GalleryViewer viewer = Assert.IsType<GalleryViewer>(gallery.Content);
+        Assert.Equal(2, viewer.Filmstrip.Count);
+        Assert.Equal(blocked.EntryKey, viewer.Filmstrip.EntryAt(0)!.EntryKey);
+        Assert.Equal(1, viewer.Filmstrip.CurrentIndex);
+        int generation = viewer.MediaRequestGeneration;
+
+        BooruMd5Lookup lookup = Assert.IsType<BooruMd5Lookup>(MainWindow.Md5LookupFor(main));
+        Task request = lookup.SearchAsync(source, Query);
+        var choice = Assert.Single(main.OwnedWindows.OfType<BooruContentDialog>());
+        ById<ComboBox>(choice, "BooruContentMaximum").SelectedIndex = 1;
+        Click(ById<Button>(choice, "BooruContentConfirm"));
+        await BooruTestSupport.WaitAsync(() => main.OwnedWindows.Any(IsTabLimitNotice), "the MD5 tab limit notice");
+        Window notice = Assert.Single(main.OwnedWindows, IsTabLimitNotice);
+        Assert.True(notice.IsVisible);
+        Assert.Equal(Texts.T("booru.tabs.limit", 2), ById<TextBlock>(notice, "BooruMd5TabLimit.message").Text);
+        Assert.True(gallery.IsEffectivelyVisible);
+        Click(ById<Button>(notice, "BooruMd5TabLimit.accept"));
+        await request;
+
+        Assert.Equal(BooruPostClaimRating.Sensitive, source.Content.Snapshot.Settings.MaximumRating);
+        Assert.Equal(MainWindow.WorkspacePage.Media, main.SelectedPage);
+        Assert.True(gallery.IsEffectivelyVisible);
+        Assert.Same(viewer, gallery.Content);
+        Assert.Equal(allowed.EntryKey, viewer.CurrentEntry?.EntryKey);
+        Assert.Equal(generation, viewer.MediaRequestGeneration);
+        Assert.Equal(1, viewer.Filmstrip.Count);
+        Assert.Equal(0, viewer.Filmstrip.CurrentIndex);
+        Assert.Equal(allowed.EntryKey, viewer.Filmstrip.EntryAt(0)!.EntryKey);
+        Assert.Equal(2, Assert.IsType<BooruPage>(main.BooruPageForTests).View.SearchTabs.Ids.Count);
+        Assert.Empty(search.Searches);
+
+        static bool IsTabLimitNotice(Window window) => AutomationProperties.GetAutomationId(window) == "BooruMd5TabLimit";
+
+        async Task<GalleryEntry> SaveEntryAsync(BooruPostKey post, int marker)
+        {
+            string name = post.PostId + ".png";
+            string file = Path.Combine(profile.Path, name);
+            byte[] png = BooruUiFixtures.Png(marker);
+            await File.WriteAllBytesAsync(file, png);
+            MediaAssetReference asset = new(name, name, "original", name, file, png.Length,
+                Convert.ToHexStringLower(SHA256.HashData(png)), "", name, true);
+            MediaAssetSnapshot manifest = new(profile.Path, MediaManifestStatus.Available, 1, "fixture", [asset]);
+            return new(new(BooruMediaIdentity.Thread(post), profile.Path, asset.AssetId), manifest, asset, null, null, false, false);
+        }
     });
 
     [Fact]

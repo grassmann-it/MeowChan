@@ -133,14 +133,13 @@ internal sealed partial class GalleryViewer
     }
 
     // The strip follows the list the shell owns: the entries (the same list that grows as further threads load) and the shown one.
-    private void FilmstripShown(GalleryEntry entry, IReadOnlyList<GalleryEntry> list)
+    private void FilmstripShown(GalleryEntry entry, IReadOnlyList<GalleryEntry> list, TimeSpan? duration = null)
     {
         int index = IndexInList(list, entry);
         _filmstrip.SetEntries(list, list.Count, ThreadPositions);
         _filmstrip.SetCurrent(index);
-        // The player reports the new length asynchronously. Clear the selected slot first so a reused
-        // viewer never leaves the previous medium's duration on a video whose length is not known yet.
-        _filmstrip.SetDuration(index, null);
+        // A newly selected video reports its duration asynchronously. A refreshed list can keep the current one.
+        _filmstrip.SetDuration(index, duration);
         UpdateFilmstripPlacement();
     }
 

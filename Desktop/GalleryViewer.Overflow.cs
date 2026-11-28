@@ -70,7 +70,8 @@ internal sealed partial class GalleryViewer
     internal bool IsContextOverPicture => _contextOverPicture;
     internal IReadOnlyList<Button> OverflowItems => _overflowButtons;
     internal Control OverflowMenuContent => _overflowPanel;
-    private readonly List<(GalleryFitMode Mode, ToggleButton Button)> _fitModeRows = new();
+    private readonly List<(GalleryFitMode Mode, RadioButton Button)> _fitModeRows = new();
+    private bool _refreshingFitModeRows;
 
     private sealed class FitModeButton : RadioButton
     {
@@ -85,21 +86,32 @@ internal sealed partial class GalleryViewer
         int insertAt = _overflowPanel.Children.IndexOf(_zoomIn);
         foreach (var (mode, commandId) in FitCommands)
         {
-            ToggleButton button = AddOverflowItem(new FitModeButton(), commandId, keepOpen: true,
+            RadioButton button = AddOverflowItem(new FitModeButton(), commandId, keepOpen: true,
                 label: () => FitModeLabel(mode));
             _overflowPanel.Children.Move(_overflowPanel.Children.IndexOf(button), insertAt++);
             button.Click += (_, _) => SelectFitMode(mode);
+            button.IsCheckedChanged += (_, _) =>
+            {
+                if (!_refreshingFitModeRows && button.IsChecked == true) SelectFitMode(mode);
+            };
             _fitModeRows.Add((mode, button));
         }
     }
 
     private void RefreshFitModeRows()
     {
-        foreach (var (mode, button) in _fitModeRows)
+        _refreshingFitModeRows = true;
+        try
         {
-            button.IsChecked = mode == EffectiveFitMode;
-            button.IsEnabled = mode == GalleryFitMode.Fit ? _fit.IsEnabled : CanSelectImageFitMode;
+            foreach (var (mode, button) in _fitModeRows)
+            {
+                button.IsChecked = mode == EffectiveFitMode;
+                button.IsEnabled = mode == GalleryFitMode.Fit
+                    ? _fit.IsEnabled || _fitPreferences.Mode != GalleryFitMode.Fit
+                    : CanSelectImageFitMode;
+            }
         }
+        finally { _refreshingFitModeRows = false; }
     }
 
     /// <summary>Opens or closes the "⋯" menu without a pointer or key (smokes and tests).</summary>

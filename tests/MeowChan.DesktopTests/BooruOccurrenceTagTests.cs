@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -59,12 +60,13 @@ public sealed class BooruOccurrenceTagTests
         (TextBlock north, Button copyNorth) = SourceRow(window, North);
         (TextBlock south, Button copySouth) = SourceRow(window, South);
         StackPanel southRow = OccurrenceRow(window, South);
-        Button show = Assert.Single(southRow.GetVisualDescendants().OfType<Button>(), button => button.Name == "MediaOccurrenceShow");
+        Button showSouth = Assert.Single(southRow.GetVisualDescendants().OfType<Button>(), button => button.Name == "MediaOccurrenceShow");
+        Button showChan = Assert.Single(window.GetVisualDescendants().OfType<Button>(), button => button.Name == "MediaOccurrenceShow" && button.IsEnabled);
         await BooruTestSupport.WaitAsync(() => north.IsEffectivelyVisible && south.IsEffectivelyVisible, "the initially admitted tags");
+        Assert.False(showSouth.IsEnabled);
 
         var clipboard = window.Clipboard!;
         await clipboard.SetTextAsync("unchanged");
-        show.IsEnabled = true;
         Assert.True(copySouth.Focus());
         SaveRules(lease, BooruPostClaimRating.Sensitive);
         Assert.True(copySouth.IsEnabled);
@@ -72,16 +74,20 @@ public sealed class BooruOccurrenceTagTests
         await BooruTestSupport.WaitAsync(() => !copySouth.IsEnabled, "the new rating ceiling to revoke copy");
         Assert.Null(south.Text);
         Assert.False(south.IsEffectivelyVisible);
-        Assert.True(show.IsFocused);
+        Assert.True(southRow.IsFocused);
         Assert.DoesNotContain("south_tag", Peer(southRow).GetName()!);
         Assert.Equal(Texts.T("booru.media.tags.copyFailed"), CopyStatus(window).Text);
         Assert.Equal("unchanged", await clipboard.TryGetTextAsync());
         Assert.True(north.IsEffectivelyVisible);
+        Assert.True(copyNorth.Focus());
+        Assert.True(window.FocusManager!.TryMoveFocus(NavigationDirection.Previous));
+        Assert.True(showChan.IsFocused);
 
         SaveRules(lease, BooruPostClaimRating.Sensitive, [new(North.SourceId, North.InstanceId, "north_tag")]);
         await BooruTestSupport.WaitAsync(() => !north.IsEffectivelyVisible, "the instance rule to remove the tags");
         Assert.Null(north.Text);
         Assert.False(copyNorth.IsEnabled);
+        Assert.True(showChan.IsFocused);
 
         SaveRules(lease, BooruPostClaimRating.Sensitive);
         await BooruTestSupport.WaitAsync(() => north.IsEffectivelyVisible, "the allowed tags to return");
@@ -150,6 +156,7 @@ public sealed class BooruOccurrenceTagTests
             ReadBooruCatalog = session.ReadBooruCatalog,
             ReadContentProfile = session.ReadLocalMediaContentProfile,
             OccurrenceProfileDirectory = session.ProfileDirectory,
+            ShowInThread = _ => Task.CompletedTask,
             TagServices = new(session.GetPublishedPrivateTagSnapshot,
                 (_, _, _, _) => { privateWrites++; throw new InvalidOperationException("Unexpected private tag definition."); },
                 (_, _, _, _, _) => { privateWrites++; throw new InvalidOperationException("Unexpected private tag assignment."); })

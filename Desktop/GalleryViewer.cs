@@ -321,13 +321,18 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ReportDiagnostic("favorite", error);
     }
 
-    // Compatible fallback for callers that do not track revisions: each call supplies a new snapshot.
-    internal void SetAssociations(IReadOnlyList<GalleryEntry> entries)
+    // The content boundary changed around the current medium. Keep its active decode and view placement.
+    internal void RefreshEntries(GalleryEntry current, IReadOnlyList<GalleryEntry> entries, long revision)
     {
-        PauseSlideshow(); // A replacement mapping is not permission to navigate an old selection.
-        SetAssociationIndex(entries, AssociationRevision + 1);
-        if (_entry is { } current)
-            _entry = _associationIndex!.For(current.Key).FirstOrDefault(value => value.EntryKey == current.EntryKey) ?? current;
+        TimeSpan? duration = _filmstrip.DurationAt(_filmstrip.CurrentIndex);
+        _navigationPending = false;
+        _browseQueue.Clear();
+        PauseSlideshow();
+        CancelFilmstripContextRequest();
+        InvalidateMediaMenu();
+        SetAssociationIndex(entries, revision);
+        if (_filmstrip.IsKeyboardFocusWithin) FocusGallerySurface();
+        FilmstripShown(current, entries, duration);
         UpdateContext();
     }
 

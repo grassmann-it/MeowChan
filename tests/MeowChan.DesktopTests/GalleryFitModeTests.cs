@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -90,11 +92,23 @@ public sealed class GalleryFitModeTests
     {
         RadioButton fit = FitRow("gallery.fit");
         RadioButton width = FitRow("gallery.fit-width");
+        RadioButton height = FitRow("gallery.fit-height");
         Assert.True(width.IsChecked);
         Assert.False(fit.IsChecked);
+        Assert.False(height.IsChecked);
         Assert.Equal(MenuItemToggleType.Radio, Assert.IsType<GalleryViewer.OverflowItem>(fit.Tag).Icon.ToggleType);
         List<GalleryFitMode> changes = [];
         viewer.FitModeChanged += changes.Add;
+
+        double widthZoom = viewer.ViewZoom;
+        var selection = Assert.IsAssignableFrom<ISelectionItemProvider>(ControlAutomationPeer.CreatePeerForElement(height));
+        selection.Select();
+        Assert.Equal(GalleryFitMode.Height, Assert.Single(changes));
+        Assert.True(selection.IsSelected);
+        Assert.False(width.IsChecked);
+        Assert.False(fit.IsChecked);
+        Assert.True(viewer.ViewZoom < widthZoom);
+        changes.Clear();
 
         using TempDirectory directory = new();
         const string name = "missing.webm";
@@ -104,15 +118,19 @@ public sealed class GalleryFitModeTests
         GalleryEntry video = new(new(new("fixture", "gallery", "2"), directory.Path, name), snapshot, asset, null, null, false, false);
         BooruComponentDispatcher.Wait(viewer.ShowAsync(video, CancellationToken.None));
         Assert.True(fit.IsChecked);
+        Assert.True(fit.IsEnabled);
         Assert.False(width.IsChecked);
+        Assert.False(height.IsChecked);
         typeof(Button).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .Invoke(fit, null);
         Assert.True(fit.IsChecked);
         Assert.False(width.IsChecked);
+        Assert.False(height.IsChecked);
         Assert.Equal(GalleryFitMode.Fit, Assert.Single(changes));
         BooruComponentDispatcher.Wait(viewer.ShowAsync(picture, CancellationToken.None));
         Assert.True(fit.IsChecked);
         Assert.False(width.IsChecked);
+        Assert.False(height.IsChecked);
         return;
 
         RadioButton FitRow(string id) => Assert.IsAssignableFrom<RadioButton>(

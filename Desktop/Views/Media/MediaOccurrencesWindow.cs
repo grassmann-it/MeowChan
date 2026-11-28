@@ -145,7 +145,7 @@ internal sealed class MediaOccurrencesWindow : Window
                 text.Text = names == null ? null : SourceTagText(source, names);
                 AutomationProperties.SetName(text, text.Text);
                 AutomationProperties.SetName(row, text.Text == null ? description : description + Environment.NewLine + text.Text);
-                if (!available && button.IsFocused && !show.Focus()) row.Focus();
+                if (!available && button.IsFocused && (!show.IsEffectivelyEnabled || !show.Focus())) row.Focus();
                 text.IsVisible = button.IsVisible = button.IsEnabled = available;
             }
             if (copy == null) return;

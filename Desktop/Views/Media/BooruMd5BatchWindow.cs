@@ -90,6 +90,7 @@ internal sealed class BooruMd5BatchWindow : Window
             DialogFooter.Build(_runButton, [close, _stopButton], _status), fillBody: true), modal: true);
         Opened += (_, _) =>
         {
+            Texts.Changed -= OnLanguageChanged;
             Texts.Changed += OnLanguageChanged;
             Localize();
             (_runButton.IsEnabled ? (Control)_runButton : _optIn).Focus();
