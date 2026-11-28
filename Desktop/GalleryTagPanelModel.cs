@@ -352,10 +352,13 @@ internal sealed class GalleryTagPanelController : IDisposable
     {
         IReadOnlyList<GalleryEntry> entries = _owner.Entries;
         if (_neighbours != null && _neighbours.Count == entries.Count) return _neighbours;
-        _fill?.Cancel();
-        GalleryTagNeighbourSubjects neighbours = _neighbours = new GalleryTagNeighbourSubjects(entries);
-        CancellationTokenSource fill = _fill = new CancellationTokenSource();
-        CancellationToken token = fill.Token;
+        GalleryTagNeighbourSubjects neighbours = new(entries);
+        if (_disposed) return neighbours;
+        using CancellationTokenSource? previousFill = _fill;
+        _fill = new CancellationTokenSource();
+        CancellationToken token = _fill.Token;
+        previousFill?.Cancel();
+        _neighbours = neighbours;
         _ = Task.Run(() => { if (neighbours.Fill(token) && !token.IsCancellationRequested) Suggestions.NotifyReady(); });
         return neighbours;
     }
@@ -390,7 +393,9 @@ internal sealed class GalleryTagPanelController : IDisposable
         _disposed = true;
         _writes.Cancel();
         _writes.Dispose();
-        try { _fill?.Cancel(); } catch (ObjectDisposedException) { }
+        _fill?.Cancel();
+        _fill?.Dispose();
+        _fill = null;
         Suggestions.Dispose();
         Session.Applied -= OnApplied;
         Session.Dispose();

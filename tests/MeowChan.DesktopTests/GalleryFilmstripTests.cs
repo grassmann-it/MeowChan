@@ -128,7 +128,7 @@ public sealed class GalleryFilmstripTests : IDisposable
 
     private sealed class Lease(int index) { internal int Index { get; } = index; internal bool Released { get; set; } }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         internal readonly List<Lease> Leases = new();
         internal readonly Dictionary<int, TaskCompletionSource<Lease?>> Waiting = new();
@@ -139,6 +139,8 @@ public sealed class GalleryFilmstripTests : IDisposable
         internal readonly FilmstripThumbnailWindow<Lease> Window;
 
         internal Fixture() => Window = new(Load, lease => lease.Released = true);
+
+        public void Dispose() => Window.Dispose();
 
         private Task<Lease?> Load(int index, CancellationToken token)
         {
@@ -167,7 +169,7 @@ public sealed class GalleryFilmstripTests : IDisposable
     [Fact]
     public async Task OnlyTheWindowIsHeldAndWhatScrollsOutIsGivenBack()
     {
-        Fixture f = new();
+        using Fixture f = new();
         f.Window.SetWindow(new(0, 9), 0);
         await Until(() => f.Window.HeldCount == 10);
         Assert.Equal(10, f.Started.Count);
@@ -184,7 +186,7 @@ public sealed class GalleryFilmstripTests : IDisposable
     [Fact]
     public async Task ALoadThatScrolledOutIsCancelledAndALateLeaseIsGivenBack()
     {
-        Fixture f = new() { Immediate = false };
+        using Fixture f = new() { Immediate = false };
         f.IgnoreCancel.Add(2); // a decoder that does not notice the cancellation and delivers late
         f.Window.SetWindow(new(0, 3), 0);
         Assert.Equal(4, f.Window.PendingCount);
@@ -205,12 +207,12 @@ public sealed class GalleryFilmstripTests : IDisposable
     [Fact]
     public async Task ANeighbourIsLoadedFirstAndAFailedTileIsNotRetriedUntilItReturns()
     {
-        Fixture f = new() { Immediate = false };
+        using Fixture f = new() { Immediate = false };
         f.Window.SetWindow(new(0, 6), 3);
         Assert.Equal(new[] { 3, 2, 4, 1, 5, 0, 6 }, f.Started);
         f.Window.Dispose();
 
-        Fixture g = new();
+        using Fixture g = new();
         g.Failing.Add(1);
         g.Window.SetWindow(new(0, 3), 0);
         await Until(() => g.Window.HeldCount == 3);
@@ -229,7 +231,7 @@ public sealed class GalleryFilmstripTests : IDisposable
     [Fact]
     public async Task ResetAndDisposeReleaseEverythingAndSilenceLaterResults()
     {
-        Fixture f = new();
+        using Fixture f = new();
         List<int> loaded = new();
         f.Window.Loaded += loaded.Add;
         f.Window.SetWindow(new(0, 4), 0);
@@ -239,7 +241,7 @@ public sealed class GalleryFilmstripTests : IDisposable
         Assert.Equal(0, f.Window.HeldCount);
         Assert.All(f.Leases, lease => Assert.True(lease.Released));
 
-        Fixture g = new() { Immediate = false };
+        using Fixture g = new() { Immediate = false };
         g.Window.SetWindow(new(0, 2), 0);
         g.Window.Dispose();
         Assert.Equal(0, g.Window.PendingCount);

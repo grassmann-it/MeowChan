@@ -437,6 +437,35 @@ public sealed class GalleryRatingKeyTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => { _ = live.SetRatingAsync([entries[0]], 6); });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisposingGalleryDecisionSessionLetsTheActiveOperationFinish(bool undo)
+    {
+        (FakeDecisions owner, GalleryEntry[] entries) = Three();
+        using GalleryDecisionSession session = new(owner);
+        GalleryEntry[] target = [entries[0]];
+        if (undo) await session.SetRatingAsync(target, 2);
+
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        owner.Pause = () => release.Task;
+        Task<GalleryDecisionStatus> active = undo ? session.UndoAsync() : session.SetRatingAsync(target, 2);
+        Task<GalleryDecisionStatus> queued = session.SetFavoriteAsync(target, true);
+        try
+        {
+            session.Dispose();
+            Assert.Equal(GalleryDecisionStatus.None, await queued.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True(session.Busy);
+            Assert.Equal(GalleryDecisionStatus.None, await session.SetRatingAsync(target, 3));
+            Assert.Equal(GalleryDecisionStatus.None, await session.UndoAsync());
+        }
+        finally { release.SetResult(); }
+
+        Assert.Equal(GalleryDecisionStatus.None, await active);
+        Assert.False(session.Busy);
+        Assert.False(owner.States["a"].Favorite);
+    }
+
     // ---- the marks keep their entries ------------------------------------------------------------------------
 
     private static MediaTagSubject Subject(string thread, char sha)

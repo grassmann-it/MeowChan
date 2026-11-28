@@ -124,8 +124,10 @@ internal sealed class GalleryDecisionSession : IDisposable
     private IReadOnlySet<GalleryEntryKey>? _undoEntries;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly object _lifetimeLock = new();
     private int _running;
     private bool _disposed;
+    private bool _cancellationComplete;
 
     internal GalleryDecisionSession(IGalleryDecisionOwner owner, int undoDepth = QuickTagOptions.DefaultUndoDepth,
         Func<GalleryEntry, bool>? allowsTarget = null)
@@ -207,10 +209,14 @@ internal sealed class GalleryDecisionSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(targets);
         GalleryEntry[] frozen = targets.ToArray(); // the list this request was made for
-        if (_disposed || frozen.Length == 0) return GalleryDecisionStatus.None;
-        BeginRun();
+        lock (_lifetimeLock)
+        {
+            if (_disposed || frozen.Length == 0) return GalleryDecisionStatus.None;
+            _running++;
+        }
         try
         {
+            Updated?.Invoke();
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
             await _gate.WaitAsync(linked.Token).ConfigureAwait(true);
             try
@@ -252,11 +258,16 @@ internal sealed class GalleryDecisionSession : IDisposable
     /// </summary>
     internal async Task<GalleryDecisionStatus> UndoAsync(CancellationToken token = default)
     {
-        if (_disposed || _undo.Count == 0 || Busy) return GalleryDecisionStatus.None;
-        GalleryDecisionStep step = _undo[^1];
-        BeginRun();
+        GalleryDecisionStep step;
+        lock (_lifetimeLock)
+        {
+            if (_disposed || _running != 0 || _undo.Count == 0) return GalleryDecisionStatus.None;
+            step = _undo[^1];
+            _running++;
+        }
         try
         {
+            Updated?.Invoke();
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
             await _gate.WaitAsync(linked.Token).ConfigureAwait(true);
             try
@@ -299,15 +310,45 @@ internal sealed class GalleryDecisionSession : IDisposable
         if (_undo.Count > UndoDepth) _undo.RemoveRange(0, _undo.Count - UndoDepth);
     }
 
-    private void BeginRun() { Interlocked.Increment(ref _running); Updated?.Invoke(); }
-    private void EndRun() { Interlocked.Decrement(ref _running); if (!_disposed) Updated?.Invoke(); }
+    private void EndRun()
+    {
+        lock (_lifetimeLock)
+        {
+            _running--;
+            if (_disposed)
+            {
+                if (_cancellationComplete && _running == 0) DisposeResources();
+                return;
+            }
+        }
+        Updated?.Invoke();
+    }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        try { _lifetime.Cancel(); } catch (ObjectDisposedException) { }
-        Updated = null;
+        lock (_lifetimeLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            Updated = null;
+        }
+
+        // Cancellation callbacks can finish a run inline. Keep both resources alive until Cancel has returned.
+        try { _lifetime.Cancel(); }
+        finally
+        {
+            lock (_lifetimeLock)
+            {
+                _cancellationComplete = true;
+                if (_running == 0) DisposeResources();
+            }
+        }
+    }
+
+    private void DisposeResources()
+    {
+        _gate.Dispose();
+        _lifetime.Dispose();
     }
 }
 
