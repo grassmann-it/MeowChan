@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -61,7 +60,7 @@ internal sealed partial class GalleryViewer
         bool playing = evidence is { UserPaused: false, Ended: false };
         _gifPlayPause.IsChecked = playing;
         _gifPlayPause.Content = CommandBindings.Icon("video.play-pause", 20, playing ? "playing" : "paused");
-        string label = Texts.T(playing ? "viewer.video.pause" : "viewer.video.play") + " · GIF";
+        string label = Texts.T(playing ? "viewer.video.pause" : "viewer.video.play") + " · " + _gif!.Info.Format;
         string tip = label + (CommandCatalog.ShortcutTooltipDisplay("video.play-pause", "gallery") is string keys ? " · " + keys : "");
         AutomationProperties.SetName(_gifPlayPause, label);
         AutomationProperties.SetHelpText(_gifPlayPause, tip);
@@ -76,8 +75,7 @@ internal sealed partial class GalleryViewer
         if (player.UserPaused) PauseSlideshow();
         RefreshGifTransport();
     }
-    private static bool IsGifCandidate(GalleryEntry entry) => string.Equals(
-        Path.GetExtension(entry.Asset.OriginalFileName ?? entry.Asset.Path), ".gif", StringComparison.OrdinalIgnoreCase);
+    private static bool IsGifCandidate(GalleryEntry entry) => GifFrameDecoder.AnimationFormat(entry).HasValue;
 
     // Called only inside the existing one-active/one-desired image decode queue.
     private Task<bool> TryAdoptGifAsync(GalleryEntry entry, int request, int decodeGeneration, CancellationToken token)
@@ -88,7 +86,6 @@ internal sealed partial class GalleryViewer
     }
     private async Task<bool> LoadGifCoreAsync(GalleryEntry entry, int request, int decodeGeneration, CancellationToken token)
     {
-        if (!IsGifCandidate(entry)) return false;
         GalleryGifPlayback? player = await GalleryGifPlayback.OpenAsync(entry, _image, token, OpenGifDecoderForTests);
         if (player == null) return false;
         try

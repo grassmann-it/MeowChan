@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop;
 
@@ -55,8 +56,9 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     private readonly WriteableBitmap _bitmap;
     private readonly GifPlaybackSequence _sequence;
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly DispatcherTimer _timer;
+    private readonly QueryDebounce _timer;
     private readonly TimeProvider _time;
+    private TaskCompletionSource _frameDue = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task _advance = Task.CompletedTask;
     private Task? _dispose;
     private TimeSpan _remaining;
@@ -64,6 +66,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     private bool _active, _userPaused, _disposed, _advancing, _failed, _adopted;
     private string? _failure;
     private long _presented;
+    internal event Action? FramePresented;
     internal event Action? StateChanged;
     internal event Action<Exception>? Failed;
     internal GalleryImageInfo Info => _decoder.Info;
@@ -73,14 +76,12 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         _sequence.CompletedPasses, Running, _userPaused, _sequence.Ended, _disposed, _failure);
     private bool Running => _adopted && !_disposed && !_failed && _active && !_userPaused && !_sequence.Ended && _sequence.FrameCount > 1;
 
-    private GalleryGifPlayback(IGifFrameDecoder decoder, Image image, GifDecodedFrame first)
+    private GalleryGifPlayback(IGifFrameDecoder decoder, Image image, GifDecodedFrame first, TimeProvider time)
     {
         Dispatcher.UIThread.VerifyAccess();
-        _decoder = decoder; _image = image; _time = TimeProvider.System;
+        _decoder = decoder; _image = image; _time = time;
         _sequence = new(decoder.FrameCount, decoder.RepetitionCount);
         _remaining = TimeSpan.FromMilliseconds(decoder.DurationMs(0));
-        _timer = new DispatcherTimer(DispatcherPriority.Render);
-        _timer.Tick += OnTick;
         _bitmap = new(new PixelSize(first.Width, first.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         try { CopyPixels(first); }
         catch (Exception error)
@@ -89,6 +90,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
             catch (Exception cleanup) { throw new GifRetirementException(this, new AggregateException(error, cleanup)); }
             throw;
         }
+        _timer = new QueryDebounce(OnTick, time, callback => image.Dispatcher.Post(callback, DispatcherPriority.Render));
     }
 
     internal static async Task<GalleryGifPlayback?> OpenAsync(MeowChan.Gallery.GalleryEntry entry,
@@ -96,18 +98,18 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         Func<MeowChan.Gallery.GalleryEntry, CancellationToken, Task<IGifFrameDecoder?>>? decoderFactory = null)
     {
         IGifFrameDecoder? decoder = decoderFactory == null
-            ? await GifFrameDecoder.OpenAsync(entry, cancellationToken) : await decoderFactory(entry, cancellationToken);
+            ? await GifFrameDecoder.OpenAnimationAsync(entry, cancellationToken) : await decoderFactory(entry, cancellationToken);
         return decoder == null ? null : await OpenAsync(decoder, target, cancellationToken);
     }
 
     internal static async Task<GalleryGifPlayback> OpenAsync(IGifFrameDecoder decoder, Image target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, TimeProvider? time = null)
     {
         try
         {
             using GifDecodedFrame first = await decoder.DecodeAsync(0, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            return new(decoder, target, first); // The caller adopts only after validating its request.
+            return new(decoder, target, first, time ?? TimeProvider.System); // The caller adopts only after validating its request.
         }
         catch (Exception openError)
         {
@@ -124,6 +126,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         if (_disposed || _adopted) return;
         _adopted = true;
         ShowBitmap();
+        Schedule();
     }
 
     internal void SetActive(bool active)
@@ -156,6 +159,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     }
     private async Task RestartAsync()
     {
+        await Task.Yield(); // Publish the restart task before it can schedule the next decode.
         try
         {
             using GifDecodedFrame frame = await _decoder.DecodeAsync(0, _lifetime.Token);
@@ -169,36 +173,45 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     }
     private void PreserveRemaining()
     {
-        if (_timer.IsEnabled)
+        if (_timer.Cancel())
         {
             TimeSpan elapsed = _time.GetElapsedTime(_scheduled);
             _remaining = elapsed >= _remaining ? TimeSpan.Zero : _remaining - elapsed;
-            _timer.Stop();
         }
     }
     private void Schedule()
     {
-        _timer.Stop();
-        if (!Running || _advancing) return;
+        if (!Running) { _timer.Cancel(); return; }
         _scheduled = _time.GetTimestamp();
-        _timer.Interval = _remaining > TimeSpan.Zero ? _remaining : TimeSpan.FromMilliseconds(1);
-        _timer.Start();
+        _timer.Request(_remaining > TimeSpan.Zero ? _remaining : TimeSpan.FromMilliseconds(1));
+        if (!_advancing && _sequence.Next is int next)
+        {
+            _advancing = true;
+            _advance = AdvanceAsync(next);
+        }
     }
-    private void OnTick(object? sender, EventArgs args)
+    private void OnTick()
     {
-        _timer.Stop(); _remaining = TimeSpan.Zero;
-        if (!Running || _advancing) return;
-        if (_sequence.Next is not int next)
+        _remaining = TimeSpan.Zero;
+        if (!Running) return;
+        if (_sequence.Next == null)
         { _sequence.Finish(); StateChanged?.Invoke(); return; }
-        _advancing = true;
-        _advance = AdvanceAsync(next);
+        TaskCompletionSource due = _frameDue;
+        _frameDue = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        due.TrySetResult();
     }
     private async Task AdvanceAsync(int next)
     {
         try
         {
             using GifDecodedFrame frame = await _decoder.DecodeAsync(next, _lifetime.Token);
-            if (_disposed || _lifetime.IsCancellationRequested || !Running) return;
+            // The prepared frame stays owned here across a pause and is released on cancellation.
+            while (!Running || _timer.IsPending)
+            {
+                _lifetime.Token.ThrowIfCancellationRequested();
+                await _frameDue.Task;
+            }
+            _lifetime.Token.ThrowIfCancellationRequested();
             _sequence.Commit(next); Present(frame);
             _remaining = TimeSpan.FromMilliseconds(_decoder.DurationMs(next));
         }
@@ -225,19 +238,24 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         if (!_adopted || _disposed) return;
         _image.Source = _bitmap;
         _image.InvalidateVisual();
-        if (_image.IsEffectivelyVisible && _image.Bounds.Width > 0 && _image.Bounds.Height > 0) ++_presented;
+        if (_image.IsEffectivelyVisible && _image.Bounds.Width > 0 && _image.Bounds.Height > 0)
+        {
+            ++_presented;
+            FramePresented?.Invoke();
+        }
     }
     private void Fail(Exception error)
     {
-        _timer.Stop(); _failed = true; _failure = error.Message;
+        _timer.Cancel(); _failed = true; _failure = error.Message;
         StateChanged?.Invoke(); Failed?.Invoke(error);
     }
     public ValueTask DisposeAsync()
     {
         Dispatcher.UIThread.VerifyAccess();
         if (_dispose != null) return new(_dispose);
-        _disposed = true; _active = false; _timer.Stop(); _timer.Tick -= OnTick;
+        _disposed = true; _active = false; _timer.Dispose();
         _lifetime.Cancel();
+        _frameDue.TrySetResult();
         if (ReferenceEquals(_image.Source, _bitmap)) _image.Source = null;
         return new(_dispose = DisposeCoreAsync());
     }
@@ -247,7 +265,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         try { await _advance; } catch (Exception error) { failure = error; }
         try { await _decoder.DisposeAsync(); } catch (Exception error) { failure = failure == null ? error : new AggregateException(failure, error); }
         try { _bitmap.Dispose(); } catch (Exception error) { failure = failure == null ? error : new AggregateException(failure, error); }
-        _lifetime.Dispose(); StateChanged = null; Failed = null;
+        _lifetime.Dispose(); FramePresented = null; StateChanged = null; Failed = null;
         if (failure != null) throw new GifRetirementException(this, failure);
     }
 }

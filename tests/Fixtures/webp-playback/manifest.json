@@ -1,0 +1,21 @@
+{
+  "license": "CC0-1.0",
+  "pillow_version": "12.3.0",
+  "width": 12,
+  "height": 8,
+  "total_passes": 2,
+  "frames": [
+    {
+      "duration_ms": 17,
+      "bgra_premul_sha256": "d01ed08542da925dd781b7c5b1a4235014cd1d6800256c658b2c0f68ebd9cd6f"
+    },
+    {
+      "duration_ms": 67,
+      "bgra_premul_sha256": "db28fc3e270069aa7f0c10961c431688055a3790a328a2f8795c5d2555e5b642"
+    },
+    {
+      "duration_ms": 143,
+      "bgra_premul_sha256": "bcc558649d18f98ec70bd5fcb737a30cb19bec39de4576c1e69b0bf3c9ef4f61"
+    }
+  ]
+}
