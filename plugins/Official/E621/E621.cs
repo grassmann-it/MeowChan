@@ -81,11 +81,13 @@ public sealed class E621Plugin : IBooruSourcePlugin
         CancellationToken cancellationToken = default)
     {
         E621Parser.Profile? profile = request is null ? null : E621Parser.Find(request.SourceId);
-        if (request is null || profile is null || SdkValidation.ValidateBooruSearchRequest(request, Description.Sources.Single(source => source.SourceId == profile.SourceId)).Count != 0)
+        if (request is null || profile is null)
             return new BooruSearchFailure(request?.SourceId ?? E621Parser.E621.SourceId, new FailureDetail("invalid-request", "The search request is not valid for this source."));
-        // e621 post ids fit a 64-bit integer; a longer cursor is not one of its ids. Never echoed.
+        // Check the provider's cursor format before the generic request validator.
         if (request.BeforePostId is not null && !E621Parser.ValidPostId(request.BeforePostId))
             return new BooruSearchFailure(request.SourceId, new FailureDetail("invalid-cursor", "The cursor is not an e621 post id."));
+        if (SdkValidation.ValidateBooruSearchRequest(request, Description.Sources.Single(source => source.SourceId == profile.SourceId)).Count != 0)
+            return new BooruSearchFailure(request.SourceId, new FailureDetail("invalid-request", "The search request is not valid for this source."));
         string page = request.BeforePostId is null
             ? request.Page.ToString(CultureInfo.InvariantCulture)
             : E621Parser.BeforeCursor(request.BeforePostId);
