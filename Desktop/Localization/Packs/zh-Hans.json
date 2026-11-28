@@ -3393,6 +3393,7 @@
     "booru.query.problem.UnsupportedMetaTag": "不接受此特殊搜索词条。只接受 rating: 词条。",
     "booru.query.problem.InvalidRating": "rating: 词条无效。请使用 g、s、q 或 e，或其完整名称，以逗号分隔。",
     "booru.query.problem.DuplicateRating": "只接受一个 rating: 词条。",
+    "booru.query.problem.InvalidMd5": "请在 md5: 后输入 32 位小写十六进制数字。rating: 条件可省略。",
     "booru.post.problem.Empty": "请输入 Danbooru 帖子链接或帖子编号。",
     "booru.post.problem.InvalidId": "帖子编号无效。请使用不带前导零的正整数。",
     "booru.post.problem.InvalidUrl": "这不是 MeowChan 可接受的 Danbooru 帖子链接。请使用 danbooru.donmai.us/posts/<编号> 形式的链接，或只输入帖子编号。",

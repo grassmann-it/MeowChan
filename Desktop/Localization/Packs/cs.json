@@ -3559,6 +3559,7 @@
     "booru.query.problem.UnsupportedMetaTag": "Tento speciální výraz hledání není přijat. Přijímají se jen výrazy rating:.",
     "booru.query.problem.InvalidRating": "Výraz rating: není platný. Použijte g, s, q nebo e, případně jejich plné názvy, oddělené čárkami.",
     "booru.query.problem.DuplicateRating": "Přijímá se jen jeden výraz rating:.",
+    "booru.query.problem.InvalidMd5": "Za md5: uveďte 32 malých šestnáctkových číslic. Výraz rating: je nepovinný.",
     "booru.post.problem.Empty": "Zadejte odkaz na příspěvek Danbooru nebo číslo příspěvku.",
     "booru.post.problem.InvalidId": "Číslo příspěvku není platné. Použijte kladné celé číslo bez úvodních nul.",
     "booru.post.problem.InvalidUrl": "Toto není odkaz na příspěvek Danbooru, který MeowChan přijímá. Použijte odkaz ve tvaru danbooru.donmai.us/posts/<číslo> nebo jen číslo příspěvku.",

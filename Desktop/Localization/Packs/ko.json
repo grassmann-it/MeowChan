@@ -3393,6 +3393,7 @@
     "booru.query.problem.UnsupportedMetaTag": "이 특수 검색어는 허용되지 않습니다. rating: 검색어만 허용됩니다.",
     "booru.query.problem.InvalidRating": "rating: 검색어가 올바르지 않습니다. g, s, q, e 또는 전체 이름을 쉼표로 구분하여 사용하세요.",
     "booru.query.problem.DuplicateRating": "rating: 검색어는 하나만 허용됩니다.",
+    "booru.query.problem.InvalidMd5": "md5: 뒤에 소문자 16진수 32자리를 입력하세요. rating: 항목은 선택 사항입니다.",
     "booru.post.problem.Empty": "Danbooru 게시물 링크나 게시물 번호를 입력하세요.",
     "booru.post.problem.InvalidId": "게시물 번호가 올바르지 않습니다. 앞에 0이 없는 양의 정수를 사용하세요.",
     "booru.post.problem.InvalidUrl": "MeowChan에서 허용하는 Danbooru 게시물 링크가 아닙니다. danbooru.donmai.us/posts/<번호> 형식의 링크나 게시물 번호만 사용하세요.",

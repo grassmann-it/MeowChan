@@ -88,6 +88,7 @@ internal static class BooruStatusCatalog
         ("booru.query.problem.UnsupportedMetaTag", "This special search term is not accepted. Only rating: terms are accepted.", "Dieser besondere Suchbegriff wird nicht akzeptiert. Nur rating:-Begriffe sind erlaubt."),
         ("booru.query.problem.InvalidRating", "The rating: term is not valid. Use g, s, q or e, or their full names, separated by commas.", "Der rating:-Begriff ist ungültig. g, s, q oder e beziehungsweise die vollen Namen verwenden, durch Kommas getrennt."),
         ("booru.query.problem.DuplicateRating", "Only one rating: term is accepted.", "Nur ein rating:-Begriff ist erlaubt."),
+        ("booru.query.problem.InvalidMd5", "Use md5: followed by 32 lowercase hexadecimal digits, with at most one rating: term.", "Nach md5: müssen 32 kleine Hexadezimalziffern stehen. Ein rating:-Term ist optional."),
         ("booru.post.problem.Empty", "Enter a Danbooru post link or a post number.", "Einen Danbooru-Post-Link oder eine Post-Nummer eingeben."),
         ("booru.post.problem.InvalidId", "The post number is not valid. Use a positive whole number without leading zeros.", "Die Post-Nummer ist ungültig. Eine positive ganze Zahl ohne führende Nullen verwenden."),
         ("booru.post.problem.InvalidUrl", "This is not a Danbooru post link MeowChan accepts. Use a link of the form danbooru.donmai.us/posts/<number> or only the post number.", "Das ist kein Danbooru-Post-Link, den MeowChan akzeptiert. Einen Link der Form danbooru.donmai.us/posts/<Nummer> oder nur die Post-Nummer verwenden."),

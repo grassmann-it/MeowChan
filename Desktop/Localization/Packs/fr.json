@@ -3581,6 +3581,7 @@
     "booru.query.problem.UnsupportedMetaTag": "Ce terme de recherche spécial n’est pas accepté. Seuls les termes rating: sont acceptés.",
     "booru.query.problem.InvalidRating": "Le terme rating: n’est pas valide. Utilisez g, s, q ou e, ou leurs noms complets, séparés par des virgules.",
     "booru.query.problem.DuplicateRating": "Un seul terme rating: est accepté.",
+    "booru.query.problem.InvalidMd5": "Faites suivre md5: de 32 chiffres hexadécimaux en minuscules. Le terme rating: est facultatif.",
     "booru.post.problem.Empty": "Saisissez un lien de publication Danbooru ou un numéro de publication.",
     "booru.post.problem.InvalidId": "Le numéro de publication n’est pas valide. Utilisez un entier positif sans zéros initiaux.",
     "booru.post.problem.InvalidUrl": "Ce n’est pas un lien de publication Danbooru accepté par MeowChan. Utilisez un lien de la forme danbooru.donmai.us/posts/<numéro> ou seulement le numéro de publication.",

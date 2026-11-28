@@ -3538,6 +3538,7 @@
     "booru.query.problem.UnsupportedMetaTag": "Este termo de pesquisa especial não é aceito. Só termos rating: são aceitos.",
     "booru.query.problem.InvalidRating": "O termo rating: não é válido. Use g, s, q ou e, ou os nomes completos, separados por vírgulas.",
     "booru.query.problem.DuplicateRating": "Só um termo rating: é aceito.",
+    "booru.query.problem.InvalidMd5": "Após md5:, digite 32 dígitos hexadecimais em minúsculas. O termo rating: é opcional.",
     "booru.post.problem.Empty": "Digite um link de postagem do Danbooru ou um número de postagem.",
     "booru.post.problem.InvalidId": "O número da postagem não é válido. Use um número inteiro positivo sem zeros à esquerda.",
     "booru.post.problem.InvalidUrl": "Este não é um link de postagem do Danbooru aceito pelo MeowChan. Use um link no formato danbooru.donmai.us/posts/<número> ou apenas o número da postagem.",

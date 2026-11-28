@@ -3393,6 +3393,7 @@
     "booru.query.problem.UnsupportedMetaTag": "この特殊な検索語は受け付けられません。受け付けるのはrating:の語だけです。",
     "booru.query.problem.InvalidRating": "rating:の語が無効です。g、s、q、eまたはその正式名をコンマで区切って使ってください。",
     "booru.query.problem.DuplicateRating": "rating:の語は1つだけ受け付けられます。",
+    "booru.query.problem.InvalidMd5": "md5: の後に小文字の16進数を32桁入力してください。rating: は省略できます。",
     "booru.post.problem.Empty": "Danbooruの投稿リンクまたは投稿番号を入力してください。",
     "booru.post.problem.InvalidId": "投稿番号が無効です。先頭に0のない正の整数を使ってください。",
     "booru.post.problem.InvalidUrl": "これはMeowChanが受け付けるDanbooruの投稿リンクではありません。danbooru.donmai.us/posts/<番号> の形式のリンクか、投稿番号のみを使ってください。",

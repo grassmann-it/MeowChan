@@ -3560,6 +3560,7 @@
     "booru.query.problem.UnsupportedMetaTag": "To specjalne wyrażenie wyszukiwania nie jest akceptowane. Akceptowane są tylko wyrażenia rating:.",
     "booru.query.problem.InvalidRating": "Wyrażenie rating: jest nieprawidłowe. Użyj g, s, q lub e albo ich pełnych nazw, oddzielonych przecinkami.",
     "booru.query.problem.DuplicateRating": "Akceptowane jest tylko jedno wyrażenie rating:.",
+    "booru.query.problem.InvalidMd5": "Po md5: wpisz 32 małe cyfry szesnastkowe. Wyrażenie rating: jest opcjonalne.",
     "booru.post.problem.Empty": "Wpisz link do postu Danbooru lub numer postu.",
     "booru.post.problem.InvalidId": "Numer postu jest nieprawidłowy. Użyj dodatniej liczby całkowitej bez zer wiodących.",
     "booru.post.problem.InvalidUrl": "To nie jest link do postu Danbooru akceptowany przez MeowChan. Użyj linku w postaci danbooru.donmai.us/posts/<numer> lub samego numeru postu.",

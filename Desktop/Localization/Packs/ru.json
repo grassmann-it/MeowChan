@@ -3594,6 +3594,7 @@
     "booru.query.problem.UnsupportedMetaTag": "Этот специальный термин поиска не принят. Принимаются только термины rating:.",
     "booru.query.problem.InvalidRating": "Термин rating: недопустим. Используйте g, s, q или e либо их полные названия через запятую.",
     "booru.query.problem.DuplicateRating": "Принимается только один термин rating:.",
+    "booru.query.problem.InvalidMd5": "После md5: укажите 32 строчные шестнадцатеричные цифры. Условие rating: необязательно.",
     "booru.post.problem.Empty": "Введите ссылку на публикацию Danbooru или номер публикации.",
     "booru.post.problem.InvalidId": "Номер публикации недопустим. Используйте положительное целое число без ведущих нулей.",
     "booru.post.problem.InvalidUrl": "Это не ссылка на публикацию Danbooru, которую принимает MeowChan. Используйте ссылку вида danbooru.donmai.us/posts/<номер> или только номер публикации.",
