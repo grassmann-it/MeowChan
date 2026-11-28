@@ -309,7 +309,7 @@ public sealed class BooruMd5LookupTests
         Assert.Equal("group_stamp", Assert.Single(walkingPanel.Session.Stamp.ToNames()));
         Assert.NotSame(main.QuickTagStampSet, walkingPanel.Session.Stamp);
 
-        await session.SaveBooruContentAsync(new(BooruPostClaimRating.Sensitive, "", []), session.LocalMediaContent.Snapshot.Revision);
+        await session.SaveBooruContentAsync(new(await session.ReadBooruContentForEditAsync(), BooruPostClaimRating.Sensitive, ""));
         await BooruTestSupport.WaitAsync(() => viewer.Filmstrip.Count == 1, "the content filter to remove the blocked image");
 
         Assert.Null(main.GalleryTagging);
